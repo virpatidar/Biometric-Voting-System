@@ -1,6 +1,0 @@
-from your_app import app, db
-from your_app.models import Candidate, Vote
-
-with app.app_context():  # Activate Flask context
-    votes_count = db.session.query(Vote).count()
-    print(f"Total votes in database: {votes_count}")
