@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voting Page - Biometric Voting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/voting_styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(-45deg, #f5f844, #ff6347, #6560f8, #e92a3a, #b625f4);
+            background-size: 400% 400%;
+            animation: backgroundColorChange 10s infinite alternate;
+            transition: all 0.3s ease;
+        }@keyframes backgroundColorChange {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .voting-container {
+        background: white;
+        padding: 30px 40px;
+        border-radius: 10px;
+        box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.15);
+        width: 100%;
+        max-width: 400px;
+        transform: translateY(20px);
+        opacity: 0;
+        animation: slideIn 0.5s forwards;
+    }
+
+    @keyframes slideIn {
+        0% { transform: translateY(20px); opacity: 0; }
+        100% { transform: translateY(0); opacity: 1; }
+    }
+
+    h2 {
+        text-align: center;
+        font-size: 24px;
+        color: #333;
+    }
+
+    label {
+        display: block;
+        font-weight: 500;
+        margin-top: 10px;
+        color: #333;
+    }
+
+    input, select, button {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 2px solid #ddd;
+        border-radius: 5px;
+        box-sizing: border-box;
+        font-size: 14px;
+        transition: border-color 0.3s ease, background 0.3s ease;
+    }
+
+    input:focus, select:focus, button:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+
+    button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+        background-color: #0056b3;
+    }
+</style>
+
+</head>
+<body>
+    <div class="voting-container">
+        <h2>Secure Voting</h2>
+        <form id="votingForm" action="/submit_vote" method="POST">
+            
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="name" placeholder="Enter your full name" required>
+
+            <label for="dob">Date of Birth</label>
+            <input type="date" id="dob" name="dob" required>
+
+            <label for="aadhaar">Aadhaar Number</label>
+            <input type="text" id="aadhaar" name="aadhaar" placeholder="Enter Aadhaar Number" required pattern="\d{12}">
+            <span id="aadhaar-error" style="color: red;"></span>
+
+            <label for="mobile">Mobile Number</label>
+            <input type="text" id="mobile" name="mobile" placeholder="Enter Mobile Number" required pattern="\d{10}">
+            
+            <button type="button" id="sendOtp">Send OTP</button>
+            <input type="text" id="otp" name="otp" placeholder="Enter OTP" required disabled>
+            <button type="button" id="verifyOtp">Verify OTP</button>
+            <p id="otpStatus">Not Verified</p>
+
+            <div id="votingSection" style="display: none;">
+                <label for="fingerprint">Fingerprint Authentication</label>
+                <button type="button" id="registerFingerprint">Register Fingerprint</button>
+                <input type="hidden" id="fingerprint_id" name="fingerprint_id">
+                <p id="fingerprintStatus">Not Verified</p>
+
+                <label for="candidate">Select Candidate</label>
+                <select id="candidate" name="candidate" required >
+                    <option value="">--Select--</option>
+                    {% for candidate in candidates %}
+                    <option value="{{ candidate }}">{{ candidate  }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit" id="voteButton" disabled>Vote</button>
+            </div>
+        </form>
+        <!-- <form id="voteForm">
+            <input type="text" name="name" placeholder="Enter Name" required>
+            <input type="text" name="aadhaar" placeholder="Enter Aadhaar Number" required>
+            <input type="text" name="mobile" placeholder="Enter Mobile Number" required>
+            <select name="candidate" required>
+                <option value="">Select Candidate</option>
+                <option value="BJP">BJP</option>
+                <option value="Congress">Congress</option>
+            </select>
+            <button type="submit">Vote</button>
+        </form>
+         -->
+    </div>
+
+    <script>
+        function calculateAge(dob) {
+            let birthDate = new Date(dob);
+            let diff = Date.now() - birthDate.getTime();
+            let ageDate = new Date(diff);
+            return Math.abs(ageDate.getUTCFullYear() - 1970);
+        }
+
+        document.getElementById("dob").addEventListener("change", function() {
+            let dob = this.value;
+            let age = calculateAge(dob);
+            if (age < 18) {
+                alert("You must be 18 years or older to vote.");
+                this.value = "";
+            }
+        });
+
+        // Verhoeff algorithm tables
+const d = [
+    [0,1,2,3,4,5,6,7,8,9],
+    [1,2,3,4,0,6,7,8,9,5],
+    [2,3,4,0,1,7,8,9,5,6],
+    [3,4,0,1,2,8,9,5,6,7],
+    [4,0,1,2,3,9,5,6,7,8],
+    [5,9,8,7,6,0,4,3,2,1],
+    [6,5,9,8,7,1,0,4,3,2],
+    [7,6,5,9,8,2,1,0,4,3],
+    [8,7,6,5,9,3,2,1,0,4],
+    [9,8,7,6,5,4,3,2,1,0]
+];
+const p = [
+    [0,1,2,3,4,5,6,7,8,9],
+    [1,5,7,6,2,8,3,0,9,4],
+    [5,8,0,3,7,9,6,1,4,2],
+    [8,9,1,6,0,4,3,5,2,7],
+    [9,4,5,3,1,2,6,8,7,0],
+    [4,2,8,6,5,7,3,9,0,1],
+    [2,7,9,3,8,0,6,4,1,5],
+    [7,0,4,6,9,1,3,2,5,8]
+];
+const inv = [0,4,3,2,1,5,6,7,8,9];
+
+// Function to validate Aadhaar using Verhoeff algorithm
+function validateAadhaar(aadhaar) {
+    let c = 0;
+    let reversedAadhaar = aadhaar.split("").reverse().map(Number);
+    
+    reversedAadhaar.forEach((num, i) => {
+        c = d[c][p[i % 8][num]];
+    });
+
+    return c === 0;
+}
+
+// Add event listener to check Aadhaar validity
+document.getElementById("aadhaar").addEventListener("input", function() {
+    let aadhaar = this.value.trim();
+    let errorSpan = document.getElementById("aadhaar-error");
+
+    if (aadhaar.length === 12 && /^\d{12}$/.test(aadhaar)) {
+        if (validateAadhaar(aadhaar)) {
+            errorSpan.textContent = "";  // Valid Aadhaar
+        } else {
+            errorSpan.textContent = "Invalid Aadhaar Number, Check again!";// Invalid Aadhaar
+        }
+    } else {
+        errorSpan.textContent = "Aadhaar must be 12 digits";
+    }
+});
+
+        document.getElementById("sendOtp").addEventListener("click", function() {
+            let name = document.getElementById("name").value.trim();
+            let dob = document.getElementById("dob").value.trim();
+            let aadhaar = document.getElementById("aadhaar").value.trim();
+            let mobile = document.getElementById("mobile").value.trim();
+
+            if (!name || !dob || !aadhaar || !mobile) {
+                alert("❌ All fields (Name, DOB, Aadhaar, Mobile) are required before sending OTP.");
+                return;
+            }
+
+            if (mobile.length === 10) {
+                fetch(`/send_otp?mobile=${mobile}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        alert("OTP Sent Successfully!");
+                        document.getElementById("otp").disabled = false;
+                    });
+            } else {
+                alert("Enter a valid 10-digit mobile number.");
+            }
+        });
+
+
+        document.getElementById("verifyOtp").addEventListener("click", function() {
+            let enteredOtp = document.getElementById("otp").value;
+            fetch(`/verify_otp?otp=${enteredOtp}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.verified) {
+                        document.getElementById("otpStatus").innerText = "Verified ✅";
+                        document.getElementById("votingSection").style.display = "block";
+                    } else {
+                        document.getElementById("otpStatus").innerText = "Incorrect OTP ❌";
+                        document.getElementById("votingSection").style.display = "none";
+                    }
+                });
+        });
+
+        document.getElementById("registerFingerprint").addEventListener("click", async function () {
+            try {
+                const credential = await navigator.credentials.create({
+                    publicKey: {
+                        challenge: new Uint8Array(32),
+                        rp: { name: "Biometric Voting System" },
+                        user: { id: new Uint8Array(16), name: "voter", displayName: "Voter" },
+                        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+                        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+                        timeout: 60000,
+                        attestation: "none"
+                    }
+                });
+                
+                if (credential) {
+                    document.getElementById("fingerprintStatus").innerText = "✅ Fingerprint Registered Successfully";
+                    document.getElementById("voteButton").disabled = false;
+                    alert("✅ Fingerprint registered successfully!");
+                }
+            } catch (error) {
+                document.getElementById("fingerprintStatus").innerText = "❌ Fingerprint Authentication Failed";
+                alert(`❌ Fingerprint authentication failed! ${error.message}`);
+            }
+        });
+
+//         document.getElementById("votingForm").addEventListener("submit", function(event) {
+//     event.preventDefault();
+
+//     let formData = new FormData(this);
+//     let data = {
+//         name: formData.get("name"),
+//         aadhaar: formData.get("aadhaar"),
+//         mobile: formData.get("mobile"),
+//         candidate: formData.get("candidate")
+//     };
+
+//     fetch("/submit_vote", {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(data)
+//     })
+//     .then(response => response.json())
+//     .then(data => alert(data.message))
+//     .catch(error => console.error("Error:", error));
+// });
+
+
+document.getElementById("votingForm").addEventListener("submit", async function(event) {
+            event.preventDefault();
+            const candidate = document.getElementById("candidate").value;
+            const name = document.getElementById("name").value;
+            const aadhaar = document.getElementById("aadhaar").value;
+            const mobile = document.getElementById("mobile").value;
+
+            try {
+                const response = await fetch("/submit_vote", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ candidate: candidate, name: name, aadhaar: aadhaar, mobile: mobile }) 
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    window.location.href = "/vote_success";  // ✅ Redirect to success page
+                } else {
+                    alert("❌ " + result.message);
+                }
+            } catch (error) {
+                alert(`❌ ${error.message}`);
+            }
+        });
+
+    </script>
+</body>
+</html>
